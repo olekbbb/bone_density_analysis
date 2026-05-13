@@ -8,6 +8,7 @@ from sklearn.mixture import GaussianMixture
 from skimage import measure, morphology
 from scipy import ndimage
 from skimage.transform import resize
+import pandas as pd
 
 def stack(batch_name):
     im_sample = Image.open(batch_name[0])
@@ -130,12 +131,110 @@ def fill_bone_volume(bone_mask_3d, closing_radius=8):
             final_mask[i] = res.astype(np.uint8) * 255
             
     return final_mask
+
+def calculate_mechanics(volume, mask_kora, mask_bryla, pixel_size=0.5):
+    z, h, w = volume.shape
+    results = []
+
+    #params from article 
+    a, b = 0.000785524, 0.004277819
+    c, d = 0.079, 0.877
+    e, f = 3.891, 2.39
+
+    pixel_min, pixel_max = np.min(volume), np.max(volume)
+    hu_min, hu_max = -600, 1500 # Przykładowy zakres HU
+
+    def scale_to_hu(pixel_val):
+        #interpolacja liniowa
+        return hu_min + (pixel_val - pixel_min) * (hu_max - hu_min) / (pixel_max - pixel_min)
+
+    for i in tqdm(range(z), desc='Analiza przekrojów'):
+        slice_gray = volume[i]
+        mask_cortex = mask_kora[i] > 0
+        mask_total = mask_bryla[i] > 0
+
+        if not np.any(mask_cortex):
+            continue
+
+        area_cortex = np.sum(mask_cortex) * (pixel_size**2)
+        area_total = np.sum(mask_total) * (pixel_size**2)
+        cortical_ratio = area_cortex / area_total if area_total > 0 else 0
+
+        #konwersja HU -> moduł younga
+        slice_hu = scale_to_hu(slice_gray)
+        rho_qct = a * slice_hu - b        
+        rho_ash = (c + rho_qct) / d
+        rho_app = rho_ash / 0.6
+        #maska dla tkanki kostnej
+        E_map = e * (np.maximum(rho_app, 0)**f)
+        E_map_cortex = np.where(mask_cortex, E_map, 0)
+        y, x = np.indices((h, w))
+        y_c = np.mean(y[mask_cortex])
+        x_c = np.mean(x[mask_cortex])
+        y_rel = (y - y_c) * pixel_size
+        x_rel = (x - x_c) * pixel_size
+        r_sq = x_rel**2 + y_rel**2
+
+        #I_sagittal (wokół osi ML - z w artykule) = ∫ y^2 dA
+        I_sag = np.sum(y_rel[mask_cortex]**2) * (pixel_size**2)
+        IE_sag = np.sum(E_map_cortex[mask_cortex] * (y_rel[mask_cortex]**2)) * (pixel_size**2)
+
+        #I_frontal (wokół osi AP - y w artykule) = ∫ x^2 dA
+        I_front = np.sum(x_rel[mask_cortex]**2) * (pixel_size**2)
+        IE_front = np.sum(E_map_cortex[mask_cortex] * (x_rel[mask_cortex]**2)) * (pixel_size**2)
+
+        #polar moment
+        J_polar = np.sum(r_sq[mask_cortex]) * (pixel_size**2)
+        JE_polar = np.sum(E_map_cortex[mask_cortex] * r_sq[mask_cortex]) * (pixel_size**2)
+
+        #Moduł przekroju (Section Modulus) S = I / y_max
+        y_max = np.max(np.abs(y_rel[mask_cortex])) if np.any(mask_cortex) else 1
+        x_max = np.max(np.abs(x_rel[mask_cortex])) if np.any(mask_cortex) else 1
+        
+        S_sag = I_sag / y_max
+        SE_sag = IE_sag / y_max
+
+        results.append({
+            'slice': i,
+            'area_cortex_mm2': area_cortex,
+            'cortical_ratio': cortical_ratio,
+            'E_mean_GPa': np.mean(E_map_cortex[mask_cortex]),
+            'I_sagittal_mm4': I_sag,
+            'IE_sagittal_GPa_mm4': IE_sag,
+            'I_frontal_mm4': I_front,
+            'IE_frontal_GPa_mm4': IE_front,
+            'J_polar_mm4': J_polar,
+            'JE_polar_GPa_mm4': JE_polar,
+            'Section_Modulus_S': S_sag,
+            'Weighted_Section_Modulus_SE': SE_sag
+        })
+
+    return pd.DataFrame(results)
 if __name__ == "__main__":
     
-    infiles = sorted(glob.glob(r'C:\Users\Supri\Desktop\bone_34_476\*.tif'))
+    infiles = sorted(glob.glob(r'C:\Users\oliwi\OneDrive\Pulpit\Studia\S2E1\pbl\*.tif'))
     rib = stack(infiles)
     COORDS = (100, 600, 100, 600)
     full_vol, initial_mask = segmentate(rib, roi_coords=COORDS)
     main_bone_shell = extract_main_bone(initial_mask, roi_coords=COORDS)
     full_bone_solid = fill_bone_volume(main_bone_shell, closing_radius=40)
+    df_stats = calculate_mechanics(rib, main_bone_shell, full_bone_solid, pixel_size=0.15)
+    if not df_stats.empty:
+        df_stats.to_csv("wyniki_biomechaniczne.csv", index=False)
+        
+        # Wybierz tylko te kolumny, które faktycznie istnieją w df_stats
+        cols_to_show = ['cortical_ratio', 'E_mean_GPa', 'IE_sagittal_GPa_mm4']
+        existing_cols = [c for c in cols_to_show if c in df_stats.columns]
+        
+        if existing_cols:
+            print("\nŚrednie parametry dla próbki:")
+            print(df_stats[existing_cols].mean())
+        else:
+            print("Błąd: Obliczone dane nie zawierają wymaganych kolumn.")
+    else:
+        print("Błąd: Funkcja calculate_mechanics zwróciła pusty zestaw danych.")
+    df_stats.to_csv("wyniki_biomechaniczne.csv", index=False)
+    print("Wyniki zapisane do wyniki_biomechaniczne.csv")
+    print("\nŚrednie parametry dla próbki:")
+    print(df_stats[['cortical_ratio', 'E_mean_GPa', 'IE_sagittal_GPa_mm4']].mean())
     view(full_vol, main_bone_shell, full_bone_solid)
