@@ -23,9 +23,9 @@ Pelne uruchomienie liczy segmentacje, zapisuje gotowa segmentacje do pliku `.npz
 Domyslnie powstaja pliki:
 
 ```text
-gotowa_segmentacja.npz
-wyniki_biomechaniczne.csv
-frontend/wyniki_data.json
+outputs/gotowa_segmentacja.npz
+outputs/wyniki_biomechaniczne.csv
+outputs/wyniki_data.json
 ```
 
 Jesli chcesz policzyc wszystko bez otwierania Napari:
@@ -77,7 +77,7 @@ Po pierwszym przeliczeniu mozna uruchomic sam viewer na zapisanej segmentacji:
 .venv/bin/python segmentacja.py --viewer-only
 ```
 
-To wczytuje `gotowa_segmentacja.npz` i pomija etap segmentacji oraz obliczen.
+To wczytuje `outputs/gotowa_segmentacja.npz` i pomija etap segmentacji oraz obliczen.
 
 Jesli zapis segmentacji jest w innym pliku:
 
@@ -87,7 +87,7 @@ Jesli zapis segmentacji jest w innym pliku:
 
 ## Wymuszenie ponownej segmentacji
 
-Jesli chcesz przeliczyc segmentacje od zera mimo istnienia `gotowa_segmentacja.npz`:
+Jesli chcesz przeliczyc segmentacje od zera mimo istnienia `outputs/gotowa_segmentacja.npz`:
 
 ```bash
 .venv/bin/python segmentacja.py --force-segmentation
@@ -104,19 +104,19 @@ Bez otwierania viewera:
 Po analizie skrypt zapisuje dane dla frontendu do:
 
 ```text
-frontend/wyniki_data.json
+outputs/wyniki_data.json
 ```
 
 Uruchom lokalny serwer statyczny:
 
 ```bash
-.venv/bin/python -m http.server 8000 --directory frontend
+.venv/bin/python -m http.server 8000 --directory .
 ```
 
 Nastepnie otworz w przegladarce:
 
 ```text
-http://127.0.0.1:8000/wyniki.html
+http://127.0.0.1:8000/frontend/wyniki.html
 ```
 
 Dashboard pokazuje:
@@ -126,7 +126,7 @@ Dashboard pokazuje:
 - wykres porownawczy dwoch metryk,
 - tabele wynikow.
 
-Mozesz tez otworzyc `frontend/wyniki.html` bez serwera i recznie wczytac `wyniki_biomechaniczne.csv` przyciskiem `Wczytaj CSV`.
+Mozesz tez otworzyc `frontend/wyniki.html` bez serwera i recznie wczytac `outputs/wyniki_biomechaniczne.csv` przyciskiem `Wczytaj CSV`.
 
 ## Przydatne opcje
 
@@ -139,7 +139,7 @@ Zmiana lokalizacji danych wejsciowych:
 Zmiana pliku zapisanej segmentacji:
 
 ```bash
-.venv/bin/python segmentacja.py --segmentation-file moje_segmentacje/probka_01.npz
+.venv/bin/python segmentacja.py --segmentation-file outputs/probka_01.npz
 ```
 
 Zmiana ROI:
@@ -157,7 +157,7 @@ Zmiana rozmiaru blokow dla slabiej dostepnej pamieci:
 Zmiana lokalizacji danych dashboardu:
 
 ```bash
-.venv/bin/python segmentacja.py --dashboard-data frontend/wyniki_data.json
+.venv/bin/python segmentacja.py --dashboard-data outputs/wyniki_data.json
 ```
 
 ## Typowy workflow
@@ -177,9 +177,9 @@ Zmiana lokalizacji danych dashboardu:
 3. Obejrz wyniki w dashboardzie:
 
 ```bash
-.venv/bin/python -m http.server 8000 --directory frontend
+.venv/bin/python -m http.server 8000 --directory .
 ```
 
 ```text
-http://127.0.0.1:8000/wyniki.html
+http://127.0.0.1:8000/frontend/wyniki.html
 ```

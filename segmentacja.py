@@ -13,9 +13,10 @@ from scipy import ndimage
 from skimage.transform import resize
 import pandas as pd
 
-DEFAULT_SEGMENTATION_FILE = "gotowa_segmentacja.npz"
-DEFAULT_RESULTS_CSV = "wyniki_biomechaniczne.csv"
-DEFAULT_DASHBOARD_DATA = "frontend/wyniki_data.json"
+OUTPUT_DIR = Path("outputs")
+DEFAULT_SEGMENTATION_FILE = OUTPUT_DIR / "gotowa_segmentacja.npz"
+DEFAULT_RESULTS_CSV = OUTPUT_DIR / "wyniki_biomechaniczne.csv"
+DEFAULT_DASHBOARD_DATA = OUTPUT_DIR / "wyniki_data.json"
 DEFAULT_BLOCK_DEPTH = 48
 DEFAULT_BLOCK_OVERLAP = 12
 
@@ -514,6 +515,7 @@ if __name__ == "__main__":
 
     df_stats = calculate_mechanics(rib, main_bone_shell, full_bone_solid, pixel_size=0.15)
     if not df_stats.empty:
+        DEFAULT_RESULTS_CSV.parent.mkdir(parents=True, exist_ok=True)
         df_stats.to_csv(DEFAULT_RESULTS_CSV, index=False)
         print(f"Wyniki zapisane do {DEFAULT_RESULTS_CSV}")
         export_dashboard_data(df_stats, args.dashboard_data)
