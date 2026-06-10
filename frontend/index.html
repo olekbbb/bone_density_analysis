@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wyniki biomechaniczne kosci</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Bone density analysis</p>
+          <h1>Wyniki biomechaniczne</h1>
+        </div>
+        <div class="actions">
+          <label class="file-button">
+            <input id="csv-file" type="file" accept=".csv">
+            Wczytaj CSV
+          </label>
+          <button id="reload-button" type="button">Odśwież dane</button>
+        </div>
+      </section>
+
+      <section id="status" class="status">Wczytywanie pliku wyniki_biomechaniczne.csv...</section>
+
+      <section id="summary" class="summary-grid" aria-label="Podsumowanie wynikow"></section>
+
+      <section class="controls" aria-label="Sterowanie wykresami">
+        <label>
+          Wygładzanie
+          <input id="smooth-range" type="range" min="1" max="51" step="2" value="9">
+        </label>
+        <span id="smooth-value">9 przekrojów</span>
+      </section>
+
+      <section class="chart-grid">
+        <article class="panel large">
+          <div class="panel-title">
+            <h2>Moduł Younga i udział kory</h2>
+            <span>E_mean_GPa / cortical_ratio</span>
+          </div>
+          <canvas id="chart-main" width="1200" height="520"></canvas>
+        </article>
+
+        <article class="panel">
+          <div class="panel-title">
+            <h2>Pole kory</h2>
+            <span>area_cortex_mm2</span>
+          </div>
+          <canvas id="chart-area" width="760" height="420"></canvas>
+        </article>
+
+        <article class="panel">
+          <div class="panel-title">
+            <h2>Sztywność zginania</h2>
+            <span>IE_sagittal / IE_frontal</span>
+          </div>
+          <canvas id="chart-ie" width="760" height="420"></canvas>
+        </article>
+
+        <article class="panel large">
+          <div class="panel-title">
+            <h2>Sztywność polarna</h2>
+            <span>JE_polar_GPa_mm4</span>
+          </div>
+          <canvas id="chart-polar" width="1200" height="420"></canvas>
+        </article>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

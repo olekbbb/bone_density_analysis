@@ -16,7 +16,7 @@ from vedo.applications import FreeHandCutPlotter
 def stack(batch_name):
     im_sample = Image.open(batch_name[0])
     orig_w, orig_h = im_sample.size
-    new_w, new_h = orig_w // 2, orig_h // 2
+    new_w, new_h = orig_w // 4, orig_h // 4
     imgs = np.zeros((len(batch_name), new_h, new_w), dtype=np.float32)
 
     for i, imfile in enumerate(tqdm(batch_name, desc='Wczytywanie obrazów')):
@@ -198,19 +198,20 @@ def export_masked_images(original_volume, mask_volume, output_folder, prefix="sl
 
 # --- 6. GŁÓWNA LOGIKA WYKONAWCZA ---
 if __name__ == "__main__":
-    infiles = sorted(glob.glob(r'C:\Users\Supri\Desktop\bone_34_476\*.tif'))
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    infiles = sorted(glob.glob(os.path.join(script_dir, "bone_34_476", "*.tif")))
     
     CACHE_SEGMENTATION = "1_initial_segmented_mask.npy"
     CACHE_CLEANED = "2_cleaned_shell_mask.npy"
     
-    FOLDER_KORA = r"C:\Users\Supri\Desktop\Tkanka_zbita"
-    FOLDER_BRYLA = r"C:\Users\Supri\Desktop\Cala_kosc"
+    FOLDER_KORA = os.path.join(script_dir, "Tkanka_zbita")
+    FOLDER_BRYLA = os.path.join(script_dir, "Cala_kosc")
     
     if not infiles:
         print("Nie znaleziono obrazów")
     else:
         rib = stack(infiles)
-        COORDS = (100, 600, 100, 600)
+        COORDS = (50, 300, 50, 300)
         
         
         if os.path.exists(CACHE_SEGMENTATION):
