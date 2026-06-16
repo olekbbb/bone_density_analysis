@@ -121,6 +121,7 @@ def load_masks(batch_name):
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
+    infiles = sorted(glob.glob(os.path.join(script_dir, "tk_pomniejszone", "*.tif")))
     cala_kosc_files = sorted(glob.glob(os.path.join(script_dir, "Cala_kosc", "*.tif")))
     zbita_files = sorted(glob.glob(os.path.join(script_dir, "Tkanka_zbita", "*.tif")))
 
@@ -132,7 +133,7 @@ if __name__ == "__main__":
         print(f"nierowna liczba plikow: Cala kosc: {len(cala_kosc_files)}, Kora: {len(zbita_files)}")
         exit()
 
-    rib = stack(cala_kosc_files)
+    rib = stack(infiles)
     main_bone_shell = load_masks(zbita_files)
     full_bone_solid = load_masks(cala_kosc_files)
 
