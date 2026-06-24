@@ -71,40 +71,49 @@ def segmentate(volume, roi_coords=(100, 600, 100, 600)):
             if last_successful_mask is not None:
                 bone_mask[i, r_start:r_end, c_start:c_end] = last_successful_mask
             continue
-            
-    binary_3d = (bone_mask > 0).astype(np.uint8)
-    labels = measure.label(binary_3d, connectivity=3)
-    props = measure.regionprops(labels)
+
+    roi_mask = bone_mask[:, r_start:r_end, c_start:c_end]
+    binary_3d_roi = (roi_mask > 0).astype(np.uint8)
+    
+    labels_roi = measure.label(binary_3d_roi, connectivity=3)
+    props = measure.regionprops(labels_roi)
     
     if props:
         largest_label = max(props, key=lambda p: p.area).label
-        bone_mask = (labels == largest_label).astype(np.uint8) * 255
+        clean_roi_mask = (labels_roi == largest_label).astype(np.uint8) * 255
+        bone_mask.fill(0)
+        bone_mask[:, r_start:r_end, c_start:c_end] = clean_roi_mask
 
     return volume, bone_mask
 
 
-# --- 3. INTERAKTYWNE CIĘCIE (CHMURA PUNKTÓW 1:1) ---
 def extract_main_bone_interactive(bone_mask_3d):
+    coords_z, coords_y, coords_x = np.where(bone_mask_3d > 0)
+    if len(coords_z) == 0:
+        return bone_mask_3d
 
+    z0, z1 = coords_z.min(), coords_z.max() + 1
+    y0, y1 = coords_y.min(), coords_y.max() + 1
+    x0, x1 = coords_x.min(), coords_x.max() + 1
 
-    binary_mask = (bone_mask_3d > 0).astype(np.uint8)
-    labels_pre = measure.label(binary_mask, connectivity=3)
+    cropped_mask = bone_mask_3d[z0:z1, y0:y1, x0:x1]
+    labels_pre = measure.label(cropped_mask > 0, connectivity=3)
     props_pre = measure.regionprops(labels_pre)
     
-    if not props_pre:
+    clean_initial_mask = np.zeros_like(bone_mask_3d, dtype=np.uint8)
+    if props_pre:
+        largest_pre = max(props_pre, key=lambda p: p.area).label
+        cropped_clean = (labels_pre == largest_pre).astype(np.uint8)
+        clean_initial_mask[z0:z1, y0:y1, x0:x1] = cropped_clean
+    else:
         return bone_mask_3d
-        
-    largest_pre = max(props_pre, key=lambda p: p.area).label
-    clean_initial_mask = (labels_pre == largest_pre).astype(np.uint8)
 
     z_idx, y_idx, x_idx = np.where(clean_initial_mask > 0)
     coords = np.column_stack((x_idx, y_idx, z_idx))
     
     pts = vedo.Points(coords, r=2).c("gold").lighting("plastic")
-
     plotter = FreeHandCutPlotter(pts)
     plotter.start()
-
     
     if hasattr(plotter, "mesh") and plotter.mesh is not None:
         surviving_coords = plotter.mesh.vertices
@@ -115,7 +124,6 @@ def extract_main_bone_interactive(bone_mask_3d):
         return clean_initial_mask * 255
 
     surviving_coords = np.round(surviving_coords).astype(int)
-    
     valid = (
         (surviving_coords[:, 0] >= 0) & (surviving_coords[:, 0] < clean_initial_mask.shape[2]) &
         (surviving_coords[:, 1] >= 0) & (surviving_coords[:, 1] < clean_initial_mask.shape[1]) &
@@ -126,16 +134,28 @@ def extract_main_bone_interactive(bone_mask_3d):
     grid_data = np.zeros_like(clean_initial_mask, dtype=bool)
     grid_data[surviving_coords[:, 2], surviving_coords[:, 1], surviving_coords[:, 0]] = True
 
-    final_labels = measure.label(grid_data, connectivity=3)
+    c_z, c_y, c_x = np.where(grid_data)
+    if len(c_z) == 0:
+        return clean_initial_mask * 255
+        
+    cz0, cz1 = c_z.min(), c_z.max() + 1
+    cy0, cy1 = c_y.min(), c_y.max() + 1
+    cx0, cx1 = c_x.min(), c_x.max() + 1
+    
+    cropped_grid = grid_data[cz0:cz1, cy0:cy1, cx0:cx1]
+    final_labels = measure.label(cropped_grid, connectivity=3)
     props_final = measure.regionprops(final_labels)
     
     if not props_final:
         return clean_initial_mask * 255
         
-    largest_final = max(props_final, key=lambda p: p.area)
+    largest_final = max(props_final, key=lambda p: p.area).label
+    cropped_final_clean = (final_labels == largest_final).astype(np.uint8) * 255
     
-    return (final_labels == largest_final.label).astype(np.uint8) * 255
-
+    final_output = np.zeros_like(bone_mask_3d, dtype=np.uint8)
+    final_output[cz0:cz1, cy0:cy1, cx0:cx1] = cropped_final_clean
+    
+    return final_output
 
 
 def fill_bone_volume(bone_mask_3d, closing_radius=8):
@@ -172,7 +192,6 @@ def fill_bone_volume(bone_mask_3d, closing_radius=8):
 
 
 def export_masked_images(original_volume, mask_volume, output_folder, prefix="slice"):
-    
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
         
@@ -183,20 +202,13 @@ def export_masked_images(original_volume, mask_volume, output_folder, prefix="sl
         orig_slice = original_volume[i]
         mask_slice = mask_volume[i]
         
-        # Gdzie maska > 0 (jest kość), tam zostawiamy oryginalny piksel. W przeciwnym razie czarne tło (0).
         masked_slice = np.where(mask_slice > 0, orig_slice, 0)
-        
-        
         masked_uint8 = np.clip(masked_slice, 0, 255).astype(np.uint8)
-        
-        # Zapis za pomocą biblioteki PIL
         img = Image.fromarray(masked_uint8)
         filename = os.path.join(output_folder, f"{prefix}_{i:04d}.tif")
         img.save(filename)
-    
 
 
-# --- 6. GŁÓWNA LOGIKA WYKONAWCZA ---
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     infiles = sorted(glob.glob(os.path.join(script_dir, "bone_34_476", "*.tif")))
@@ -213,22 +225,17 @@ if __name__ == "__main__":
         rib = stack(infiles)
         COORDS = (50, 300, 50, 300)
         
-        
         if os.path.exists(CACHE_SEGMENTATION):
             print(f"\n Znaleziono zapisaną segmentację: {CACHE_SEGMENTATION}")
             initial_mask = np.load(CACHE_SEGMENTATION)
         else:
-            
             _, initial_mask = segmentate(rib, roi_coords=COORDS)
             np.save(CACHE_SEGMENTATION, initial_mask) 
 
-        
         if os.path.exists(CACHE_CLEANED):
             print(f"Znaleziono maskę po cięciu w Vedo ({CACHE_CLEANED})")
             main_bone_shell = np.load(CACHE_CLEANED)
-            
         else:
-            
             main_bone_shell = extract_main_bone_interactive(initial_mask)
             np.save(CACHE_CLEANED, main_bone_shell)
             
