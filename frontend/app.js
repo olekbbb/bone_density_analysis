@@ -111,8 +111,10 @@ function renderDashboard() {
   const rows = smoothRows(currentRows, smoothWindow);
 
   renderSummary(currentRows);
-  drawLineChart("chart-main", rows, [
+  drawLineChart("chart-young", rows, [
     { key: "young", label: "E mean [GPa]", color: "#0f766e" },
+  ]);
+  drawLineChart("chart-ratio", rows, [
     { key: "ratio", label: "Cortical ratio", color: "#b45309" },
   ]);
   drawLineChart("chart-area", rows, [
