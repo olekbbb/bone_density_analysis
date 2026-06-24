@@ -14,6 +14,7 @@ let currentRows = [];
 
 const statusEl = document.querySelector("#status");
 const summaryEl = document.querySelector("#summary");
+const commentEl = document.querySelector("#comment");
 const smoothRange = document.querySelector("#smooth-range");
 const smoothValue = document.querySelector("#smooth-value");
 const sliceMinInput = document.querySelector("#slice-min");
@@ -129,6 +130,7 @@ function renderDashboard() {
   const rows = smoothRows(filteredRows, smoothWindow);
 
   renderSummary(filteredRows);
+  renderComment(filteredRows);
   drawLineChart("chart-young", rows, [
     { key: "young", label: "E mean [GPa]", color: "#0f766e" },
   ]);
@@ -164,6 +166,73 @@ function renderSummary(rows) {
       </article>
     `)
     .join("");
+}
+
+const COMMENT_ICONS = {
+  up: "▲",
+  down: "▼",
+  stable: "■",
+  warning: "⚠",
+};
+
+function renderComment(rows) {
+  const points = [];
+
+  const edgeSize = Math.max(1, Math.round(rows.length * 0.1));
+  const startRows = rows.slice(0, edgeSize);
+  const endRows = rows.slice(-edgeSize);
+
+  points.push(...trendPoint(startRows, endRows, "young", "Moduł Younga", "GPa"));
+  points.push(...trendPoint(startRows, endRows, "ratio", "Udział kory kostnej", ""));
+  points.push(...trendPoint(startRows, endRows, "area", "Pole kory", "mm²"));
+
+  const ratioOutliers = rows.filter((row) => row.ratio > 1).length;
+  if (ratioOutliers > 0) {
+    points.push({
+      type: "warning",
+      text: `${ratioOutliers} przekrojów ma cortical_ratio > 1, co jest fizycznie niemożliwe — prawdopodobnie błąd segmentacji/maski w tych miejscach.`,
+    });
+  }
+
+  if (!points.length) {
+    points.push({ type: "stable", text: "Brak wyraźnych trendów lub anomalii w wybranym zakresie przekrojów." });
+  }
+
+  commentEl.innerHTML = `
+    <div class="comment-title">Automatyczny komentarz</div>
+    <div class="comment-grid">
+      ${points
+        .map(
+          (point) => `
+        <div class="comment-item comment-${point.type}">
+          <span class="comment-icon">${COMMENT_ICONS[point.type]}</span>
+          <span class="comment-text">${point.text}</span>
+        </div>
+      `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function trendPoint(startRows, endRows, key, label, unit) {
+  const startMean = mean(startRows, key);
+  const endMean = mean(endRows, key);
+  if (!Number.isFinite(startMean) || !Number.isFinite(endMean) || startMean === 0) return [];
+
+  const change = ((endMean - startMean) / Math.abs(startMean)) * 100;
+  if (Math.abs(change) < 5) {
+    return [{ type: "stable", text: `${label} jest stabilny na całym zakresie (~${format(startMean)} ${unit}).` }];
+  }
+
+  const type = change > 0 ? "up" : "down";
+  const direction = change > 0 ? "wzrasta" : "spada";
+  return [
+    {
+      type,
+      text: `${label} ${direction} o ${format(Math.abs(change))}% (z ${format(startMean)} ${unit} do ${format(endMean)} ${unit}) na przestrzeni wybranego zakresu.`,
+    },
+  ];
 }
 
 function smoothRows(rows, windowSize) {
