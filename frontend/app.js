@@ -16,6 +16,8 @@ const statusEl = document.querySelector("#status");
 const summaryEl = document.querySelector("#summary");
 const smoothRange = document.querySelector("#smooth-range");
 const smoothValue = document.querySelector("#smooth-value");
+const sliceMinInput = document.querySelector("#slice-min");
+const sliceMaxInput = document.querySelector("#slice-max");
 
 document.querySelector("#reload-button").addEventListener("click", loadDefaultCsv);
 document.querySelector("#csv-file").addEventListener("change", (event) => {
@@ -30,6 +32,9 @@ smoothRange.addEventListener("input", () => {
   smoothValue.textContent = `${smoothRange.value} przekrojów`;
   renderDashboard();
 });
+
+sliceMinInput.addEventListener("input", renderDashboard);
+sliceMaxInput.addEventListener("input", renderDashboard);
 
 loadDefaultCsv();
 
@@ -107,10 +112,23 @@ function toNumber(value) {
 function renderDashboard() {
   if (!currentRows.length) return;
 
-  const smoothWindow = Number.parseInt(smoothRange.value, 10);
-  const rows = smoothRows(currentRows, smoothWindow);
+  const sliceMin = Number.parseFloat(sliceMinInput.value);
+  const sliceMax = Number.parseFloat(sliceMaxInput.value);
+  const filteredRows = currentRows.filter((row) => {
+    if (Number.isFinite(sliceMin) && row.slice < sliceMin) return false;
+    if (Number.isFinite(sliceMax) && row.slice > sliceMax) return false;
+    return true;
+  });
 
-  renderSummary(currentRows);
+  if (!filteredRows.length) {
+    statusEl.textContent = "Brak przekrojów w wybranym zakresie.";
+    return;
+  }
+
+  const smoothWindow = Number.parseInt(smoothRange.value, 10);
+  const rows = smoothRows(filteredRows, smoothWindow);
+
+  renderSummary(filteredRows);
   drawLineChart("chart-young", rows, [
     { key: "young", label: "E mean [GPa]", color: "#0f766e" },
   ]);
